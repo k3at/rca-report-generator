@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>مولد تقارير RCA — Root Cause Analysis</title>
+<style>
+  :root{--bg:#0b0f19;--panel:#11162a;--panel2:#161c33;--border:rgba(255,255,255,0.07);--text:#e6eaf2;--muted:#8b95a7;--accent:#3b82f6;--accent2:#8b5cf6;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  header{padding:18px 24px;text-align:center;border-bottom:1px solid var(--border)}
+  header h1{font-size:22px;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{color:var(--muted);font-size:13px;margin-top:4px}
+  .container{max-width:1200px;margin:0 auto;padding:16px 20px 40px;display:grid;grid-template-columns:320px 1fr;gap:16px}
+  @media (max-width:900px){.container{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .card h2{font-size:15px;margin-bottom:10px;color:#fff}
+  .card h3{font-size:13px;color:var(--muted);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.5px}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
+  input,select,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13px;font-family:inherit}
+  textarea{min-height:60px;resize:vertical}
+  .btn{padding:9px 14px;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;margin-top:6px}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+  .btn-ghost{background:var(--panel2);color:var(--text);border:1px solid var(--border)}
+  .btn-success{background:var(--green);color:#000}
+  .model-list{display:flex;flex-direction:column;gap:6px}
+  .model{padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);cursor:pointer;font-size:13px}
+  .model.active{border-color:var(--accent);background:rgba(59,130,246,0.12)}
+  .model .name{font-weight:600}
+  .model .desc{font-size:11px;color:var(--muted);margin-top:2px}
+  .field{margin-bottom:10px}
+  .report{background:#fff;color:#111;border-radius:12px;padding:24px;min-height:400px}
+  .report h1{font-size:20px;border-bottom:2px solid #3b82f6;padding-bottom:6px;margin-bottom:12px}
+  .report h2{font-size:15px;margin:14px 0 6px;color:#1e3a8a}
+  .report p,.report li{font-size:13px;line-height:1.6;margin:4px 0}
+  .report ul{padding-right:18px}
+  .report .meta{font-size:12px;color:#555;margin-bottom:10px}
+  .report .box{border:1px solid #ddd;border-radius:8px;padding:10px;margin:8px 0;background:#f9fafb}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;background:rgba(59,130,246,0.15);color:#93c5fd;border:1px solid rgba(59,130,246,0.3);margin-left:4px}
+  .compare{font-size:12px;color:var(--muted);line-height:1.6}
+  .compare table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+  .compare th,.compare td{padding:6px;border-bottom:1px solid var(--border);text-align:right}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:16px}
+  @media print{
+    body{background:#fff}
+    header,.container .card:first-child,.toolbar{display:none}
+    .report{box-shadow:none}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔍 مولد تقارير تحليل السبب الجذري — RCA Report Generator</h1>
+  <p>عبّء المربعات → اضغط "إنشاء التقرير" → تصدير/طباعة. تم اختبار 6 نماذج شائعة.</p>
+</header>
+
+<div class="container">
+  <!-- Left: model + meta -->
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div class="card">
+      <h2>1. اختر النموذج</h2>
+      <div class="model-list" id="modelList"></div>
+    </div>
+    <div class="card">
+      <h2>2. بيانات الحادث</h2>
+      <label>عنوان الحادث</label><input id="incidentTitle" placeholder="مثال: تأخر شحنات العملاء" />
+      <label>التاريخ</label><input type="date" id="incidentDate" />
+      <label>الموقع/القسم</label><input id="location" placeholder="المصنع/القسم" />
+      <label>المُبلّغ</label><input id="reporter" placeholder="الاسم" />
+      <label>الخطورة</label><select id="severity"><option>منخفضة</option><option>متوسطة</option><option selected>عالية</option><option>حرجة</option></select>
+    </div>
+    <div class="card">
+      <h3>مقارنة النماذج (أفضل نتيجة)</h3>
+      <div class="compare">
+        <table>
+          <tr><th>النموذج</th><th>الأفضل لـ</th><th>التعقيد</th></tr>
+          <tr><td>5 Whys</td><td>مشاكل بسيطة/مباشرة</td><td>منخفض</td></tr>
+          <tr><td>Fishbone (6M)</td><td>مشاكل معقدة/متعددة الأسباب</td><td>متوسط</td></tr>
+          <tr><td>8D</td><td>شكاوى عملاء/جودة</td><td>高</td></tr>
+          <tr><td>A3</td><td>تحسين مستمر (Lean)</td><td>متوسط</td></tr>
+          <tr><td>FMEA</td><td>منع فشل مستقبلي</td><td>高</td></tr>
+          <tr><td>Fault Tree</td><td>أنظمة/سلامة</td><td>高</td></tr>
+        </table>
+        <p style="margin-top:8px">💡 <b>توصية:</b> ابدأ بـ <b>5 Whys</b> للمشاكل البسيطة، و<b>Fishbone</b> للمعقدة، و<b>8D</b> لشكاوى العملاء. دمج 5 Whys + Fishbone يعطي أفضل تغطية.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: dynamic form + report -->
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div class="card">
+      <h2>3. تعبئة النموذج</h2>
+      <div id="formArea"></div>
+      <div class="toolbar">
+        <button class="btn btn-primary" id="genBtn">🚀 إنشاء التقرير</button>
+        <button class="btn btn-ghost" id="saveBtn">💾 حفظ</button>
+        <button class="btn btn-ghost" id="loadBtn">📂 تحميل</button>
+        <button class="btn btn-success" id="printBtn">🖨️ طباعة/PDF</button>
+        <button class="btn btn-ghost" id="pdfBtn">📄 تصدير PDF (jsPDF)</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>4. التقرير (معاينة)</h2>
+      <div id="report" class="report">
+        <p style="color:#888">عبّء الحقول واضغط "إنشاء التقرير".</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>© 2026 RCA Report Generator — نماذج: 5 Whys, Fishbone 6M, 8D, A3, FMEA, Fault Tree.</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const MODELS = [
+  { id:'5whys', name:'5 Whys', desc:'5 لماذا — بسيط وسريع' },
+  { id:'fishbone', name:'Fishbone (6M)', desc:'عظمة السمكة — أسباب متعددة' },
+  { id:'8d', name:'8D', desc:'8 تخصصات — شكاوى عملاء' },
+  { id:'a3', name:'A3', desc:'A3 — Lean/تحسين مستمر' },
+  { id:'fmea', name:'FMEA', desc:'تحليل أوضاع الفشل' },
+  { id:'faulttree', name:'Fault Tree', desc:'شجرة الأخطاء — أنظمة/سلامة' }
+];
+
+let currentModel='5whys';
+
+function renderModelList(){
+  const el=document.getElementById('modelList');
+  el.innerHTML='';
+  MODELS.forEach(m=>{
+    const d=document.createElement('div');
+    d.className='model'+(m.id===currentModel?' active':'');
+    d.innerHTML=`<div class="name">${m.name}</div><div class="desc">${m.desc}</div>`;
+    d.onclick=()=>{ currentModel=m.id; renderModelList(); renderForm(); };
+    el.appendChild(d);
+  });
+}
+
+function field(label, id, type='text', placeholder=''){
+  return `<div class="field"><label>${label}</label>${type==='textarea'?`<textarea id="${id}" placeholder="${placeholder}"></textarea>`:`<input type="${type}" id="${id}" placeholder="${placeholder}" />`}</div>`;
+}
+
+function renderForm(){
+  const el=document.getElementById('formArea');
+  let html='';
+  switch(currentModel){
+    case '5whys':
+      html += field('وصف المشكلة', 'p_problem', 'textarea', 'صف المشكلة بوضوح (ماذا/متى/أين/من)');
+      for(let i=1;i<=5;i++) html += field(`لماذا ${i}؟`, `why${i}`, 'textarea', `السبب ${i}`);
+      html += field('السبب الجذري (Root Cause)', 'rootCause', 'textarea');
+      html += field('الإجراءات التصحيحية (Corrective)', 'corrective', 'textarea');
+      html += field('الإجراءات الوقائية (Preventive)', 'preventive', 'textarea');
+      html += field('المسؤول', 'owner');
+      html += field('تاريخ الإنجاز', 'dueDate', 'date');
+      break;
+    case 'fishbone':
+      html += field('بيان المشكلة (Effect)', 'fb_problem', 'textarea');
+      ['الإنسان (Man)','الآلة (Machine)','الطريقة (Method)','المادة (Material)','القياس (Measurement)','البيئة (Environment)'].forEach((c,i)=> {
+        html += field(c, 'fb_cat'+i, 'textarea', 'أسباب...');
+      });
+      html += field('السبب الجذري (Root Cause)', 'fb_root', 'textarea');
+      html += field('الإجراءات', 'fb_actions', 'textarea');
+      break;
+    case '8d':
+      const d8 = [
+        ['D1','تشكيل الفريق','d1'],
+        ['D2','وصف المشكلة','d2'],
+        ['D3','إجراءات احتواء مؤقتة (Interim)','d3'],
+        ['D4','تحليل السبب الجذري','d4'],
+        ['D5','اختيار الإجراءات التصحيحية','d5'],
+        ['D6','تنفيذ الإجراءات التصحيحية','d6'],
+        ['D7','إجراءات وقائية (Preventive)','d7'],
+        ['D8','تهنئة الفريق / إغلاق','d8']
+      ];
+      d8.forEach(([k,v,id])=> html += field(`${k}: ${v}`, id, 'textarea'));
+      break;
+    case 'a3':
+      html += field('الخلفية (Background)', 'a3_bg', 'textarea');
+      html += field('الوضع الحالي (Current Condition)', 'a3_cc', 'textarea');
+      html += field('الهدف (Goal/Target)', 'a3_goal', 'textarea');
+      html += field('تحليل السبب الجذري', 'a3_rca', 'textarea');
+      html += field('الإجراءات المضادة (Countermeasures)', 'a3_cm', 'textarea');
+      html += field('خطة التنفيذ', 'a3_plan', 'textarea');
+      html += field('المتابعة (Follow-up)', 'a3_fu', 'textarea');
+      break;
+    case 'fmea':
+      html += field('العملية/الوظيفة', 'f_process');
+      html += field('وضع الفشل (Failure Mode)', 'f_mode', 'textarea');
+      html += field('التأثير (Effect)', 'f_effect', 'textarea');
+      html += field('السبب (Cause)', 'f_cause', 'textarea');
+      html += field('الضوابط الحالية (Controls)', 'f_controls', 'textarea');
+      html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        ${field('Severity (S)','f_s','number')}
+        ${field('Occurrence (O)','f_o','number')}
+        ${field('Detection (D)','f_d','number')}
+      </div>`;
+      html += field('RPN (S×O×D)', 'f_rpn', 'number');
+      html += field('الإجراءات الموصى بها', 'f_actions', 'textarea');
+      html += field('المسؤول', 'f_owner');
+      html += field('تاريخ الإنجاز', 'f_due', 'date');
+      break;
+    case 'faulttree':
+      html += field('الحدث الأعلى (Top Event)', 'ft_top', 'textarea');
+      html += field('البوابات (AND/OR)', 'ft_gates', 'textarea', 'مثال: Gate1 (OR): E1,E2; Gate2 (AND): E3,E4');
+      html += field('الأحداث الأساسية (Basic Events)', 'ft_basic', 'textarea');
+      html += field('الأحداث الوسيطة', 'ft_intermediate', 'textarea');
+      html += field('السبب الجذري', 'ft_root', 'textarea');
+      html += field('الإجراءات', 'ft_actions', 'textarea');
+      break;
+  }
+  el.innerHTML = html;
+  // auto calc RPN
+  if(currentModel==='fmea'){
+    ['f_s','f_o','f_d'].forEach(id=>{ const el=document.getElementById(id); if(el) el.oninput=calcRPN; });
+  }
+}
+
+function calcRPN(){
+  const s=+document.getElementById('f_s').value||0;
+  const o=+document.getElementById('f_o').value||0;
+  const d=+document.getElementById('f_d').value||0;
+  document.getElementById('f_rpn').value = s*o*d;
+}
+
+function val(id){ const e=document.getElementById(id); return e? (e.value||'').trim() : ''; }
+
+function generateReport(){
+  const title = val('incidentTitle') || 'حادث بدون عنوان';
+  const date = val('incidentDate') || new Date().toISOString().slice(0,10);
+  const loc = val('location');
+  const rep = val('reporter');
+  const sev = val('severity');
+  let body = '';
+  const meta = `<div class="meta"><b>العنوان:</b> ${title} &nbsp;|&nbsp; <b>التاريخ:</b> ${date} &nbsp;|&nbsp; <b>الموقع:</b> ${loc} &nbsp;|&nbsp; <b>الخطورة:</b> ${sev} &nbsp;|&nbsp; <b>المُبلّغ:</b> ${rep} &nbsp;|&nbsp; <b>النموذج:</b> ${currentModel}</div>`;
+
+  switch(currentModel){
+    case '5whys':
+      body = `
+        <h2>1. وصف المشكلة</h2><div class="box">${val('p_problem').replace(/\n/g,'<br>')}</div>
+        <h2>2. سلسلة Why</h2><ol>${[1,2,3,4,5].map(i=>`<li><b>لماذا ${i}:</b> ${val('why'+i)}</li>`).join('')}</ol>
+        <h2>3. السبب الجذري</h2><div class="box">${val('rootCause')}</div>
+        <h2>4. الإجراءات التصحيحية</h2><div class="box">${val('corrective').replace(/\n/g,'<br>')}</div>
+        <h2>5. الإجراءات الوقائية</h2><div class="box">${val('preventive').replace(/\n/g,'<br>')}</div>
+        <h2>6. المسؤول / الإنجاز</h2><p>المسؤول: ${val('owner')} — تاريخ الإنجاز: ${val('dueDate')}</p>`;
+      break;
+    case 'fishbone':
+      const cats = [0,1,2,3,4,5].map(i=>`<li><b>${['الإنسان','الآلة','الطريقة','المادة','القياس','البيئة'][i]}:</b> ${val('fb_cat'+i).replace(/\n/g,'; ')}</li>`).join('');
+      body = `
+        <h2>1. المشكلة (Effect)</h2><div class="box">${val('fb_problem')}</div>
+        <h2>2. Fishbone (6M)</h2><ul>${cats}</ul>
+        <h2>3. السبب الجذري</h2><div class="box">${val('fb_root')}</div>
+        <h2>4. الإجراءات</h2><div class="box">${val('fb_actions').replace(/\n/g,'<br>')}</div>`;
+      break;
+    case '8d':
+      body = `<h2>8D Report</h2>` + ['d1','d2','d3','d4','d5','d6','d7','d8'].map((id,i)=>`<h2>D${i+1}</h2><div class="box">${val(id).replace(/\n/g,'<br>')}</div>`).join('');
+      break;
+    case 'a3':
+      body = `
+        <h2>الخلفية</h2><div class="box">${val('a3_bg')}</div>
+        <h2>الوضع الحالي</h2><div class="box">${val('a3_cc')}</div>
+        <h2>الهدف</h2><div class="box">${val('a3_goal')}</div>
+        <h2>تحليل السبب الجذري</h2><div class="box">${val('a3_rca').replace(/\n/g,'<br>')}</div>
+        <h2>الإجراءات المضادة</h2><div class="box">${val('a3_cm').replace(/\n/g,'<br>')}</div>
+        <h2>خطة التنفيذ</h2><div class="box">${val('a3_plan').replace(/\n/g,'<br>')}</div>
+        <h2>المتابعة</h2><div class="box">${val('a3_fu')}</div>`;
+      break;
+    case 'fmea':
+      body = `
+        <h2>FMEA</h2>
+        <p><b>العملية:</b> ${val('f_process')}</p>
+        <p><b>وضع الفشل:</b> ${val('f_mode')}</p>
+        <p><b>التأثير:</b> ${val('f_effect')}</p>
+        <p><b>السبب:</b> ${val('f_cause')}</p>
+        <p><b>الضوابط:</b> ${val('f_controls')}</p>
+        <p><b>S/O/D:</b> ${val('f_s')}/${val('f_o')}/${val('f_d')} → <b>RPN: ${val('f_rpn')}</b></p>
+        <h2>الإجراءات الموصى بها</h2><div class="box">${val('f_actions').replace(/\n/g,'<br>')}</div>
+        <p>المسؤول: ${val('f_owner')} — الإنجاز: ${val('f_due')}</p>`;
+      break;
+    case 'faulttree':
+      body = `
+        <h2>الحدث الأعلى</h2><div class="box">${val('ft_top')}</div>
+        <h2>البوابات</h2><div class="box">${val('ft_gates').replace(/\n/g,'<br>')}</div>
+        <h2>الأحداث الأساسية</h2><div class="box">${val('ft_basic').replace(/\n/g,'<br>')}</div>
+        <h2>الأحداث الوسيطة</h2><div class="box">${val('ft_intermediate').replace(/\n/g,'<br>')}</div>
+        <h2>السبب الجذري</h2><div class="box">${val('ft_root')}</div>
+        <h2>الإجراءات</h2><div class="box">${val('ft_actions').replace(/\n/g,'<br>')}</div>`;
+      break;
+  }
+
+  const report = document.getElementById('report');
+  report.innerHTML = `<h1>تقرير تحليل السبب الجذري (RCA)</h1>${meta}${body}`;
+}
+
+// ---------- Save/Load ----------
+function gather(){
+  const data = { model: currentModel, meta: {
+    incidentTitle: val('incidentTitle'), incidentDate: val('incidentDate'),
+    location: val('location'), reporter: val('reporter'), severity: val('severity')
+  }, fields: {} };
+  document.querySelectorAll('#formArea input, #formArea textarea, #formArea select').forEach(e=>{ data.fields[e.id]=e.value; });
+  return data;
+}
+document.getElementById('saveBtn').onclick=()=>{
+  localStorage.setItem('rca_data', JSON.stringify(gather()));
+  alert('تم الحفظ');
+};
+document.getElementById('loadBtn').onclick=()=>{
+  const raw = localStorage.getItem('rca_data'); if(!raw){ alert('لا توجد بيانات'); return; }
+  const d = JSON.parse(raw);
+  currentModel = d.model; renderModelList(); renderForm();
+  Object.entries(d.meta).forEach(([k,v])=>{ const e=document.getElementById(k); if(e) e.value=v; });
+  Object.entries(d.fields).forEach(([k,v])=>{ const e=document.getElementById(k); if(e) e.value=v; });
+  generateReport();
+};
+
+document.getElementById('genBtn').onclick = generateReport;
+document.getElementById('printBtn').onclick = ()=> window.print();
+document.getElementById('pdfBtn').onclick = ()=>{
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'a4' });
+  const text = document.getElementById('report').innerText;
+  const lines = doc.splitTextToSize(text, 540);
+  let y = 40;
+  lines.forEach(l=>{ if(y>780){ doc.addPage(); y=40; } doc.text(l, 30, y); y+=14; });
+  doc.save('RCA-Report.pdf');
+};
+
+renderModelList();
+renderForm();
+</script>
+</body>
+</html>
